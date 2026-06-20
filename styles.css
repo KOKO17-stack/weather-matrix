@@ -364,6 +364,40 @@ body {
   gap: 12px;
 }
 
+/* ── Model Bar ── */
+.model-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.model-tab {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.model-tab:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.model-tab.active {
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.35);
+  color: var(--cyan);
+}
+
 /* ── Hour Card ── */
 .hour-card {
   background: var(--surface);
@@ -474,6 +508,40 @@ body {
 }
 
 .hour-card__wind .wind-icon { font-size: 1rem; }
+
+.hour-card__model-badge {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.1);
+  padding: 2px 8px;
+  border-radius: 100px;
+  border: 1px solid rgba(34, 211, 238, 0.15);
+}
+
+.hour-card .model-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.hour-card .model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background var(--transition);
+}
+
+.hour-card .model-dot.active {
+  background: var(--cyan);
+}
+
+.hour-card .model-dot.maybe {
+  background: var(--amber);
+}
 
 /* ── Status Notice ── */
 .status-notice {

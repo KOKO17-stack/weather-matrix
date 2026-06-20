@@ -66,7 +66,14 @@
     <section class="matrix" id="matrix-section">
       <div class="matrix__header">
         <h2 class="matrix__title">8‑Hour Predictive Matrix</h2>
-        <button id="refresh-btn" class="btn btn--glass" aria-label="Refresh forecast">↻ Refresh</button>
+        <button id="refresh-btn" class="btn" aria-label="Refresh forecast">↻ Refresh</button>
+      </div>
+      <div class="model-bar" id="model-bar">
+        <button class="model-tab active" data-model="consensus">☑ Consensus</button>
+        <button class="model-tab" data-model="ecmwf_ifs">ECMWF IFS</button>
+        <button class="model-tab" data-model="gfs_global">NOAA GFS</button>
+        <button class="model-tab" data-model="dwd_icon">DWD ICON</button>
+        <button class="model-tab" data-model="jma_gsm">JMA GSM</button>
       </div>
       <div id="matrix-grid" class="matrix__grid">
         <div class="matrix__skeleton" aria-hidden="true">

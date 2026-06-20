@@ -8,10 +8,10 @@ const CONFIG = {
   geo: 'https://geocoding-api.open-meteo.com/v1/search',
   params: 'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,wind_speed_10m',
   models: [
-    { id: 'ecmwf_ifs', label: 'ECMWF IFS', short: 'EC', agency: 'European Centre' },
-    { id: 'gfs_global', label: 'NOAA GFS', short: 'GF', agency: 'NOAA (US)' },
-    { id: 'dwd_icon', label: 'DWD ICON', short: 'IC', agency: 'DWD (Germany)' },
-    { id: 'jma_gsm', label: 'JMA GSM', short: 'GS', agency: 'JMA (Japan)' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', short: 'EC', agency: 'European Centre' },
+    { id: 'gfs_seamless', label: 'NOAA GFS', short: 'GF', agency: 'NOAA (US)' },
+    { id: 'icon_seamless', label: 'DWD ICON', short: 'IC', agency: 'DWD (Germany)' },
+    { id: 'jma_seamless', label: 'JMA GSM', short: 'GS', agency: 'JMA (Japan)' },
   ],
 };
 
@@ -99,7 +99,7 @@ function renderSkeleton() {
 /* ── Multi-model data extraction ── */
 
 function modelVal(hourly, modelId, varName, idx) {
-  const key = modelId + '_' + varName;
+  const key = varName + '_' + modelId;
   if (hourly[key] && hourly[key][idx] != null) return hourly[key][idx];
   if (hourly[varName] && hourly[varName][idx] != null) return hourly[varName][idx];
   return null;
@@ -157,35 +157,42 @@ function extractHours(data) {
 }
 
 function currentModelVal(current, modelId, varName) {
-  const key = modelId + '_' + varName;
+  const key = varName + '_' + modelId;
   if (current[key] != null) return current[key];
   if (current[varName] != null) return current[varName];
   return null;
 }
 
-function getCurrentConsensus(current) {
+function getCurrentConsensus(current, fallbackHour) {
   const temps = CONFIG.models.map(m => currentModelVal(current, m.id, 'temperature_2m')).filter(v => v != null);
   const feels = CONFIG.models.map(m => currentModelVal(current, m.id, 'apparent_temperature')).filter(v => v != null);
   const rains = CONFIG.models.map(m => currentModelVal(current, m.id, 'precipitation_probability')).filter(v => v != null);
   const hums = CONFIG.models.map(m => currentModelVal(current, m.id, 'relative_humidity_2m')).filter(v => v != null);
   const winds = CONFIG.models.map(m => currentModelVal(current, m.id, 'wind_speed_10m')).filter(v => v != null);
 
-  return {
-    temperature: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
-    feelsLike: feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null,
-    rainChance: rains.length ? rains.reduce((a, b) => a + b, 0) / rains.length : null,
-    humidity: hums.length ? hums.reduce((a, b) => a + b, 0) / hums.length : null,
-    wind: winds.length ? winds.reduce((a, b) => a + b, 0) / winds.length : null,
-  };
+  if (temps.length) {
+    return {
+      temperature: temps.reduce((a, b) => a + b, 0) / temps.length,
+      feelsLike: feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null,
+      rainChance: rains.length ? rains.reduce((a, b) => a + b, 0) / rains.length : null,
+      humidity: hums.length ? hums.reduce((a, b) => a + b, 0) / hums.length : null,
+      wind: winds.length ? winds.reduce((a, b) => a + b, 0) / winds.length : null,
+    };
+  }
+
+  if (fallbackHour && fallbackHour.consensus) {
+    return fallbackHour.consensus;
+  }
+
+  return { temperature: null, feelsLike: null, rainChance: null, humidity: null, wind: null };
 }
 
 /* ── Rendering ── */
 
 function renderCurrent(data) {
-  const c = data.current;
-  if (!c) return;
-
-  const cons = getCurrentConsensus(c);
+  const c = data.current || {};
+  const fb = state.hours[0] || null;
+  const cons = getCurrentConsensus(c, fb);
 
   const rc = cons.rainChance ?? 0;
   els.currentIcon.textContent = weatherIcon(rc, 0);
@@ -193,8 +200,9 @@ function renderCurrent(data) {
   const t = cons.temperature;
   els.currentTemp.textContent = t != null ? fmt(t, 0) + '\u00B0' : '--\u00B0';
   els.currentTemp.className = 'current__temp ' + tempClass(t);
+  const fl = cons.feelsLike;
   els.currentDesc.textContent = t != null
-    ? 'Feels like ' + fmt(cons.feelsLike, 0) + '\u00B0 \u00B7 ' + state.name + ' \u00B7 ' + CONFIG.models.length + ' models'
+    ? (fl != null ? 'Feels like ' + fmt(fl, 0) + '\u00B0 \u00B7 ' : '') + state.name + ' \u00B7 ' + CONFIG.models.length + ' models'
     : 'Loading forecast\u2026';
 
   els.feelsLike.textContent = cons.feelsLike != null ? fmt(cons.feelsLike, 0) + '\u00B0' : '\u2014';

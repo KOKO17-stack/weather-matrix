@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Matrix · 8‑Hour Precision Forecast</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://api.open-meteo.com" />
+</head>
+<body>
+  <div class="orb-bg">
+    <div class="orb orb--1"></div>
+    <div class="orb orb--2"></div>
+    <div class="orb orb--3"></div>
+  </div>
+
+  <div class="app">
+    <header class="header">
+      <div class="header__top">
+        <h1 class="header__title">Weather Matrix</h1>
+        <div class="search">
+          <input type="text" id="search-input" class="search__input" placeholder="Search city…" autocomplete="off" spellcheck="false" />
+          <button id="search-btn" class="search__btn" aria-label="Search">⌕</button>
+          <ul id="search-results" class="search__drop hidden"></ul>
+        </div>
+      </div>
+      <div class="header__meta">
+        <span id="location-name" class="header__loc">Loading…</span>
+        <span class="header__sep">·</span>
+        <span id="coords-display" class="header__coords"></span>
+        <span class="header__sep">·</span>
+        <span id="update-time" class="header__updated">—</span>
+      </div>
+    </header>
+
+    <section class="current glass-card" id="current-section">
+      <div class="current__primary">
+        <div class="current__icon-wrap">
+          <span id="current-icon" class="current__icon">☀️</span>
+        </div>
+        <div class="current__temp-wrap">
+          <span id="current-temp" class="current__temp">--°</span>
+          <span id="current-desc" class="current__desc">Loading forecast…</span>
+        </div>
+      </div>
+      <div class="current__grid">
+        <div class="metric">
+          <span class="metric__label">Feels Like</span>
+          <span id="feels-like" class="metric__value">--°</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">Humidity</span>
+          <span id="humidity" class="metric__value">--%</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">Rain Chance</span>
+          <span id="current-rain" class="metric__value">--%</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">Wind</span>
+          <span id="current-wind" class="metric__value">-- km/h</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="matrix" id="matrix-section">
+      <div class="matrix__header">
+        <h2 class="matrix__title">8‑Hour Predictive Matrix</h2>
+        <button id="refresh-btn" class="btn btn--glass" aria-label="Refresh forecast">↻ Refresh</button>
+      </div>
+      <div id="matrix-grid" class="matrix__grid">
+        <div class="matrix__skeleton" aria-hidden="true">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="status-notice" class="status-notice glass-card hidden">
+      <span id="status-icon" class="status-notice__icon">⚠️</span>
+      <span id="status-msg" class="status-notice__msg"></span>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

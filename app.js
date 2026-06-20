@@ -133,10 +133,12 @@ function extractHours(data) {
       };
     });
 
+    const rainModels = CONFIG.models.filter(m => m.id !== 'gfs_seamless');
+
     const temps = CONFIG.models.map(m => modelData[m.id].temperature).filter(v => v != null);
     const feels = CONFIG.models.map(m => modelData[m.id].feelsLike).filter(v => v != null);
-    const rains = CONFIG.models.map(m => modelData[m.id].rainChance).filter(v => v != null);
-    const raind = CONFIG.models.map(m => modelData[m.id].rainMm).filter(v => v != null);
+    const rains = rainModels.map(m => modelData[m.id].rainChance).filter(v => v != null);
+    const raind = rainModels.map(m => modelData[m.id].rainMm).filter(v => v != null);
     const winds = CONFIG.models.map(m => modelData[m.id].wind).filter(v => v != null);
 
     hours.push({
@@ -164,9 +166,11 @@ function currentModelVal(current, modelId, varName) {
 }
 
 function getCurrentConsensus(current, fallbackHour) {
+  const rainModels = CONFIG.models.filter(m => m.id !== 'gfs_seamless');
+
   const temps = CONFIG.models.map(m => currentModelVal(current, m.id, 'temperature_2m')).filter(v => v != null);
   const feels = CONFIG.models.map(m => currentModelVal(current, m.id, 'apparent_temperature')).filter(v => v != null);
-  const rains = CONFIG.models.map(m => currentModelVal(current, m.id, 'precipitation_probability')).filter(v => v != null);
+  const rains = rainModels.map(m => currentModelVal(current, m.id, 'precipitation_probability')).filter(v => v != null);
   const hums = CONFIG.models.map(m => currentModelVal(current, m.id, 'relative_humidity_2m')).filter(v => v != null);
   const winds = CONFIG.models.map(m => currentModelVal(current, m.id, 'wind_speed_10m')).filter(v => v != null);
 

